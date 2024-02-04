@@ -44,7 +44,10 @@ impl NetcodeServerPlugin {
         mut transport_errors: EventWriter<NetcodeTransportError>,
     ) {
         if let Err(e) = transport.update(time.delta(), &mut server) {
-            transport_errors.send(e);
+            // TODO: This does not indicate which server socket the error came from.
+            for error in e {
+                transport_errors.send(error);
+            }
         }
     }
 

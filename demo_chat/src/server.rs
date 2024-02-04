@@ -6,7 +6,7 @@ use std::{
 };
 
 use renet2::{
-    transport::{NativeSocket, NetcodeServerTransport, ServerAuthentication, ServerConfig},
+    transport::{NativeSocket, NetcodeServerTransport, ServerAuthentication, ServerSetupConfig},
     ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
 };
 use renet2_visualizer::RenetServerVisualizer;
@@ -30,11 +30,11 @@ impl ChatServer {
     pub fn new(host_username: String) -> Self {
         let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
         let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        let server_config = ServerConfig {
+        let server_config = ServerSetupConfig {
             current_time,
             max_clients: 64,
             protocol_id: PROTOCOL_ID,
-            public_addresses: vec![socket.local_addr().unwrap()],
+            socket_addresses: vec![vec![socket.local_addr().unwrap()]],
             authentication: ServerAuthentication::Unsecure,
         };
 

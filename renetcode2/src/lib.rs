@@ -29,7 +29,7 @@ pub use client::{ClientAuthentication, DisconnectReason, NetcodeClient};
 pub use crypto::generate_random_bytes;
 pub use error::NetcodeError;
 pub use packet::{Packet, PacketType};
-pub use server::{NetcodeServer, ServerAuthentication, ServerConfig, ServerResult};
+pub use server::{NetcodeServer, ServerAuthentication, ServerConfig, ServerResult, ServerSocketConfig};
 pub use token::{ConnectToken, TokenGenerationError};
 
 use std::time::Duration;

@@ -2,7 +2,7 @@ use bevy::{prelude::*, render::mesh::PlaneMeshBuilder};
 use bevy_renet2::{
     client_connected,
     renet2::{
-        transport::{ClientAuthentication, ServerAuthentication, ServerConfig},
+        transport::{ClientAuthentication, ServerAuthentication, ServerSetupConfig},
         ConnectionConfig, DefaultChannel, RenetClient, RenetServer, ServerEvent,
     },
     transport::{NetcodeClientPlugin, NetcodeServerPlugin},
@@ -54,6 +54,7 @@ fn new_renet_client() -> (RenetClient, NetcodeClientTransport) {
     let authentication = ClientAuthentication::Unsecure {
         client_id,
         protocol_id: PROTOCOL_ID,
+        socket_id: 0,
         server_addr,
         user_data: None,
     };
@@ -68,11 +69,11 @@ fn new_renet_server() -> (RenetServer, NetcodeServerTransport) {
     let public_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind(public_addr).unwrap();
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let server_config = ServerConfig {
+    let server_config = ServerSetupConfig {
         current_time,
         max_clients: 64,
         protocol_id: PROTOCOL_ID,
-        public_addresses: vec![public_addr],
+        socket_addresses: vec![vec![public_addr]],
         authentication: ServerAuthentication::Unsecure,
     };
 

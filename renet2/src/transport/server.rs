@@ -1,34 +1,110 @@
 use std::{io, net::SocketAddr, time::Duration};
 
 use renetcode2::{NetcodeServer, ServerConfig, ServerResult, NETCODE_MAX_PACKET_BYTES, NETCODE_USER_DATA_BYTES};
+use renetcode2::{ServerAuthentication, ServerSocketConfig};
 
 use crate::ClientId;
 use crate::RenetServer;
 
 use super::{NetcodeTransportError, TransportSocket};
 
+/// Config for setting up a [`NetcodeServerTransport`].
+///
+/// Will be converted to a [`ServerConfig`].
+pub struct ServerSetupConfig {
+    pub current_time: Duration,
+    /// Maximum numbers of clients that can be connected at a time
+    pub max_clients: usize,
+    /// Unique identifier for this particular game/application.
+    /// You can use a hash function with the current version of the game to generate this value
+    /// so that older versions cannot connect to newer versions.
+    pub protocol_id: u64,
+    /// Public addresses for each socket associated with this server.
+    pub socket_addresses: Vec<Vec<SocketAddr>>,
+    /// Authentication configuration for the server
+    pub authentication: ServerAuthentication,
+}
+
+/// Convenience wrapper for [`TransportSocket`].
+///
+/// Used in [`NetcodeServerTransport::new_with_sockets`].
+pub struct BoxedSocket(Box<dyn TransportSocket>);
+
+impl BoxedSocket {
+    /// Makes a new boxed socket.
+    pub fn new(socket: impl TransportSocket) -> Self {
+        Self(Box::new(socket))
+    }
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::system::Resource))]
 pub struct NetcodeServerTransport {
-    socket: Box<dyn TransportSocket>,
+    sockets: Vec<Box<dyn TransportSocket>>,
     netcode_server: NetcodeServer,
     buffer: [u8; NETCODE_MAX_PACKET_BYTES],
 }
 
 impl NetcodeServerTransport {
-    pub fn new(server_config: ServerConfig, socket: impl TransportSocket) -> Result<Self, std::io::Error> {
-        let netcode_server = NetcodeServer::new(server_config).set_encryption_policy(!socket.is_encrypted());
+    /// Makes a new server transport that uses `netcode` for managing connections and data flow.
+    pub fn new(server_config: ServerSetupConfig, socket: impl TransportSocket) -> Result<Self, std::io::Error> {
+        Self::new_with_sockets(server_config, vec![BoxedSocket::new(socket)])
+    }
+
+    /// Makes a new server transport that uses `netcode` for managing connections and data flow.
+    ///
+    /// Multiple [`TransportSockets`](TransportSocket) may be inserted. Each socket must line
+    /// up 1:1 with socket entries in [`ServerSetupConfig::socket_addresses`].
+    pub fn new_with_sockets(mut server_config: ServerSetupConfig, mut boxed: Vec<BoxedSocket>) -> Result<Self, std::io::Error> {
+        if server_config.socket_addresses.is_empty() {
+            panic!("netcode server transport must have at least 1 socket");
+        }
+        if server_config.socket_addresses.len() != boxed.len() {
+            panic!("server config does not match the number of sockets");
+        }
+
+        // Unwrap the boxed sockets so they can be accessed as raw boxes.
+        let mut sockets = Vec::with_capacity(boxed.len());
+        for socket in boxed.drain(..) {
+            sockets.push(socket.0);
+        }
+
+        // Transfer config details, use the actual socket impls to determine whether the sockets need netcode encryption.
+        let mut socket_configs = Vec::with_capacity(sockets.len());
+        let mut socket_addresses = std::mem::take(&mut server_config.socket_addresses);
+        for (addrs, socket) in socket_addresses.drain(..).zip(sockets.iter()) {
+            socket_configs.push(ServerSocketConfig {
+                needs_encryption: !socket.is_encrypted(),
+                public_addresses: addrs,
+            });
+        }
+
+        let server_config = ServerConfig {
+            current_time: server_config.current_time,
+            max_clients: server_config.max_clients,
+            protocol_id: server_config.protocol_id,
+            sockets: socket_configs,
+            authentication: server_config.authentication,
+        };
 
         Ok(Self {
-            socket: Box::new(socket),
-            netcode_server,
+            sockets,
+            netcode_server: NetcodeServer::new(server_config),
             buffer: [0; NETCODE_MAX_PACKET_BYTES],
         })
     }
 
-    /// Returns the server public address
+    /// Returns the server's public addresses for the first transport socket.
     pub fn addresses(&self) -> Vec<SocketAddr> {
-        self.netcode_server.addresses()
+        self.get_addresses(0).unwrap()
+    }
+
+    /// Returns the server's public addresses for a given `socket_id`.
+    pub fn get_addresses(&self, socket_id: usize) -> Option<Vec<SocketAddr>> {
+        if socket_id >= self.sockets.len() {
+            return None;
+        }
+        Some(self.netcode_server.addresses(socket_id))
     }
 
     /// Returns the maximum number of clients that can be connected.
@@ -46,70 +122,83 @@ impl NetcodeServerTransport {
         self.netcode_server.user_data(client_id.raw())
     }
 
-    /// Returns the client address if connected.
-    pub fn client_addr(&self, client_id: ClientId) -> Option<SocketAddr> {
+    /// Returns the client socket id and address if connected.
+    pub fn client_addr(&self, client_id: ClientId) -> Option<(usize, SocketAddr)> {
         self.netcode_server.client_addr(client_id.raw())
     }
 
     /// Disconnects all connected clients.
+    ///
     /// This sends the disconnect packet instantly, use this when closing/exiting games,
     /// should use [RenetServer::disconnect_all][crate::RenetServer::disconnect_all] otherwise.
     pub fn disconnect_all(&mut self, server: &mut RenetServer) {
         for client_id in self.netcode_server.clients_id() {
             let server_result = self.netcode_server.disconnect(client_id);
-            handle_server_result(server_result, &mut self.socket, server);
+            handle_server_result(server_result, &mut self.sockets, server);
         }
     }
 
     /// Returns the duration since the connected client last received a packet.
-    /// Usefull to detect users that are timing out.
+    ///
+    /// Useful to detect users that are timing out.
     pub fn time_since_last_received_packet(&self, client_id: ClientId) -> Option<Duration> {
         self.netcode_server.time_since_last_received_packet(client_id.raw())
     }
 
     /// Advances the transport by the duration, and receive packets from the network.
-    pub fn update(&mut self, duration: Duration, server: &mut RenetServer) -> Result<(), NetcodeTransportError> {
+    pub fn update(&mut self, duration: Duration, server: &mut RenetServer) -> Result<(), Vec<NetcodeTransportError>> {
         self.netcode_server.update(duration);
 
-        self.socket.preupdate();
+        let mut transport_errors = Vec::default();
+        for socket_id in 0..self.sockets.len() {
+            self.sockets[socket_id].preupdate();
 
-        loop {
-            match self.socket.try_recv(&mut self.buffer) {
-                Ok((len, addr)) => {
-                    let server_result = self.netcode_server.process_packet(addr, &mut self.buffer[..len]);
-                    handle_server_result(server_result, &mut self.socket, server);
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => break,
-                Err(ref e) if e.kind() == io::ErrorKind::ConnectionReset => continue,
-                Err(e) => return Err(e.into()),
-            };
+            loop {
+                match self.sockets[socket_id].try_recv(&mut self.buffer) {
+                    Ok((len, addr)) => {
+                        let server_result = self.netcode_server.process_packet(socket_id, addr, &mut self.buffer[..len]);
+                        handle_server_result(server_result, &mut self.sockets, server);
+                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(ref e) if e.kind() == io::ErrorKind::Interrupted => break,
+                    Err(ref e) if e.kind() == io::ErrorKind::ConnectionReset => continue,
+                    Err(e) => {
+                        transport_errors.push(e.into());
+                    }
+                };
+            }
         }
 
         for client_id in self.netcode_server.clients_id() {
             let server_result = self.netcode_server.update_client(client_id);
-            handle_server_result(server_result, &mut self.socket, server);
+            handle_server_result(server_result, &mut self.sockets, server);
         }
 
         for disconnection_id in server.disconnections_id() {
             let server_result = self.netcode_server.disconnect(disconnection_id.raw());
-            handle_server_result(server_result, &mut self.socket, server);
+            handle_server_result(server_result, &mut self.sockets, server);
         }
 
-        self.socket.postupdate();
+        for socket in self.sockets.iter_mut() {
+            socket.postupdate();
+        }
+
+        if transport_errors.len() > 0 {
+            return Err(transport_errors);
+        }
 
         Ok(())
     }
 
-    /// Send packets to connected clients.
+    /// Sends packets to connected clients.
     pub fn send_packets(&mut self, server: &mut RenetServer) {
         'clients: for client_id in server.clients_id() {
             let packets = server.get_packets_to_send(client_id).unwrap();
             for packet in packets {
                 match self.netcode_server.generate_payload_packet(client_id.raw(), &packet) {
-                    Ok((addr, payload)) => {
-                        if let Err(e) = self.socket.send(addr, payload) {
-                            log::error!("Failed to send packet to client {client_id} ({addr}): {e}");
+                    Ok((socket_id, addr, payload)) => {
+                        if let Err(e) = self.sockets[socket_id].send(addr, payload) {
+                            log::error!("Failed to send packet to client {client_id} ({socket_id}/{addr}): {e}");
                             continue 'clients;
                         }
                     }
@@ -123,21 +212,17 @@ impl NetcodeServerTransport {
     }
 }
 
-fn handle_server_result(
-    server_result: ServerResult,
-    socket: &mut Box<dyn TransportSocket>,
-    reliable_server: &mut RenetServer
-){
-    let mut send_packet = |packet: &[u8], addr: SocketAddr| {
-        if let Err(err) = socket.send(addr, packet) {
-            log::error!("Failed to send packet to {addr}: {err}");
+fn handle_server_result(server_result: ServerResult, sockets: &mut [Box<dyn TransportSocket>], reliable_server: &mut RenetServer) {
+    let mut send_packet = |packet: &[u8], socket_id: usize, addr: SocketAddr| {
+        if let Err(err) = sockets[socket_id].send(addr, packet) {
+            log::error!("Failed to send packet to {socket_id}/{addr}: {err}");
         }
     };
 
     match server_result {
         ServerResult::None => {}
-        ServerResult::PacketToSend { payload, addr } => {
-            send_packet(payload, addr);
+        ServerResult::PacketToSend { payload, addr, socket_id } => {
+            send_packet(payload, socket_id, addr);
         }
         ServerResult::Payload { client_id, payload } => {
             let client_id = ClientId::from_raw(client_id);
@@ -150,16 +235,22 @@ fn handle_server_result(
             user_data: _,
             addr,
             payload,
+            socket_id,
         } => {
             reliable_server.add_connection(ClientId::from_raw(client_id));
-            send_packet(payload, addr);
+            send_packet(payload, socket_id, addr);
         }
-        ServerResult::ClientDisconnected { client_id, addr, payload } => {
+        ServerResult::ClientDisconnected {
+            client_id,
+            addr,
+            payload,
+            socket_id,
+        } => {
             reliable_server.remove_connection(ClientId::from_raw(client_id));
             if let Some(payload) = payload {
-                send_packet(payload, addr);
+                send_packet(payload, socket_id, addr);
             }
-            socket.disconnect(addr);
+            sockets[socket_id].disconnect(addr);
         }
     }
 }

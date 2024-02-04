@@ -8,7 +8,7 @@ use std::{
 
 use renet2::{
     transport::{
-        ClientAuthentication, NativeSocket, NetcodeClientTransport, NetcodeServerTransport, ServerAuthentication, ServerConfig,
+        ClientAuthentication, NativeSocket, NetcodeClientTransport, NetcodeServerTransport, ServerAuthentication, ServerSetupConfig,
         NETCODE_USER_DATA_BYTES,
     },
     ClientId, ConnectionConfig, DefaultChannel, RenetClient, RenetServer, ServerEvent,
@@ -69,11 +69,11 @@ fn server(public_addr: SocketAddr) {
     let mut server: RenetServer = RenetServer::new(connection_config);
 
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let server_config = ServerConfig {
+    let server_config = ServerSetupConfig {
         current_time,
         max_clients: 64,
         protocol_id: PROTOCOL_ID,
-        public_addresses: vec![public_addr],
+        socket_addresses: vec![vec![public_addr]],
         authentication: ServerAuthentication::Unsecure,
     };
     let socket: UdpSocket = UdpSocket::bind(public_addr).unwrap();
@@ -147,6 +147,7 @@ fn client(server_addr: SocketAddr, username: Username) {
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let client_id = current_time.as_millis() as u64;
     let authentication = ClientAuthentication::Unsecure {
+        socket_id: 0,
         server_addr,
         client_id,
         user_data: Some(username.to_netcode_user_data()),
