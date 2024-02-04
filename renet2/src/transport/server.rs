@@ -17,7 +17,7 @@ pub struct NetcodeServerTransport {
 
 impl NetcodeServerTransport {
     pub fn new(server_config: ServerConfig, socket: impl TransportSocket) -> Result<Self, std::io::Error> {
-        let netcode_server = NetcodeServer::new(server_config);
+        let netcode_server = NetcodeServer::new(server_config).set_encryption_policy(!socket.is_encrypted());
 
         Ok(Self {
             socket: Box::new(socket),
@@ -123,7 +123,11 @@ impl NetcodeServerTransport {
     }
 }
 
-fn handle_server_result(server_result: ServerResult, socket: &mut Box<dyn TransportSocket>, reliable_server: &mut RenetServer) {
+fn handle_server_result(
+    server_result: ServerResult,
+    socket: &mut Box<dyn TransportSocket>,
+    reliable_server: &mut RenetServer
+){
     let mut send_packet = |packet: &[u8], addr: SocketAddr| {
         if let Err(err) = socket.send(addr, packet) {
             log::error!("Failed to send packet to {addr}: {err}");

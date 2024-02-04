@@ -5,7 +5,7 @@
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 
 
-Renetcode is a simple connection based client/server protocol, was developed be used in games with UDP in mind, but can be used with other transports methods. Implements the Netcode 1.02 standard, available [here][standard] and the original implementation in C is available in the [netcode][netcode] repository.
+Renetcode2 is a simple connection based client/server protocol, was developed be used in games with UDP in mind, but can be used with other transports methods. Implements the Netcode 1.a2 standard with renet2 extensions, available [here][standard] and the original implementation in C is available in the [netcode][netcode] repository. See `NETCODE_EXTENSIONS.md` for the extensions implemented here.
 
 Has the following feature:
 - Encrypted and signed packets

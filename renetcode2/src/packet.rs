@@ -1,6 +1,6 @@
 use std::io::{self, Cursor, Write};
 
-use crate::crypto::{dencrypted_in_place, encrypt_in_place};
+use crate::crypto::{decode_and_check_buffer, dencrypted_in_place, encode_in_place, encrypt_in_place};
 use crate::replay_protection::ReplayProtection;
 use crate::token::ConnectToken;
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
 };
 use crate::{NETCODE_USER_DATA_BYTES, NETCODE_VERSION_INFO};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PacketType {
     ConnectionRequest = 0,
@@ -25,7 +25,7 @@ pub enum PacketType {
 #[allow(clippy::large_enum_variant)] // TODO: Consider boxing types
 pub enum Packet<'a> {
     ConnectionRequest {
-        version_info: [u8; 13], // "NETCODE 1.02" ASCII with null terminator.
+        version_info: [u8; 13], // "NETCODE 1.a2" ASCII with null terminator.
         protocol_id: u64,
         expire_timestamp: u64,
         xnonce: [u8; NETCODE_CONNECT_TOKEN_XNONCE_BYTES],
@@ -214,7 +214,13 @@ impl<'a> Packet<'a> {
         }
     }
 
-    pub fn encode(&self, buffer: &mut [u8], protocol_id: u64, crypto_info: Option<(u64, &[u8; 32])>) -> Result<usize, NetcodeError> {
+    pub fn encode(
+        &self,
+        buffer: &mut [u8],
+        protocol_id: u64,
+        crypto_info: Option<(u64, &[u8; 32])>,
+        encrypted: bool,
+    ) -> Result<usize, NetcodeError> {
         if matches!(self, Packet::ConnectionRequest { .. }) {
             let mut writer = io::Cursor::new(buffer);
             let prefix_byte = encode_prefix(self.id(), 0);
@@ -238,14 +244,19 @@ impl<'a> Packet<'a> {
                 let additional_data = get_additional_data(prefix_byte, protocol_id);
                 (start, writer.position() as usize, additional_data)
             };
+
             if buffer.len() < end + NETCODE_MAC_BYTES {
                 return Err(NetcodeError::IoError(io::Error::new(
                     io::ErrorKind::WriteZero,
-                    "buffer too small to encode with encryption tag",
+                    "buffer too small to encode",
                 )));
             }
 
-            encrypt_in_place(&mut buffer[start..end + NETCODE_MAC_BYTES], sequence, private_key, &aad)?;
+            match encrypted {
+                true => encrypt_in_place(&mut buffer[start..end + NETCODE_MAC_BYTES], sequence, private_key, &aad)?,
+                false => encode_in_place(&mut buffer[start..end + NETCODE_MAC_BYTES], protocol_id),
+            }
+
             Ok(end + NETCODE_MAC_BYTES)
         } else {
             Err(NetcodeError::UnavailablePrivateKey)
@@ -257,6 +268,7 @@ impl<'a> Packet<'a> {
         protocol_id: u64,
         private_key: Option<&[u8; 32]>,
         replay_protection: Option<&mut ReplayProtection>,
+        encrypted: bool,
     ) -> Result<(u64, Self), NetcodeError> {
         if buffer.len() < 2 + NETCODE_MAC_BYTES {
             return Err(NetcodeError::PacketTooSmall);
@@ -283,7 +295,10 @@ impl<'a> Packet<'a> {
                 }
             }
 
-            dencrypted_in_place(&mut buffer[read_pos..], sequence, private_key, &aad)?;
+            match encrypted {
+                true => dencrypted_in_place(&mut buffer[read_pos..], sequence, private_key, &aad)?,
+                false => decode_and_check_buffer(&buffer[read_pos..], protocol_id).map_err(|()| NetcodeError::CryptoError)?,
+            }
 
             if let Some(replay_protection) = replay_protection {
                 if packet_type.apply_replay_protection() {
@@ -296,6 +311,17 @@ impl<'a> Packet<'a> {
         } else {
             Err(NetcodeError::UnavailablePrivateKey)
         }
+    }
+
+    /// Gets the packet type of a packet.
+    pub fn packet_type_from_buffer(buffer: &[u8]) -> Result<PacketType, NetcodeError> {
+        if buffer.len() < 2 + NETCODE_MAC_BYTES {
+            return Err(NetcodeError::PacketTooSmall);
+        }
+
+        let prefix_byte = buffer[0];
+        let (packet_type, _) = decode_prefix(prefix_byte);
+        PacketType::from_u8(packet_type)
     }
 }
 
@@ -386,7 +412,7 @@ mod tests {
     fn connection_request_serialization() {
         let connection_request = Packet::ConnectionRequest {
             xnonce: generate_random_bytes(),
-            version_info: [0; 13], // "NETCODE 1.02" ASCII with null terminator.
+            version_info: [0; 13], // "NETCODE 1.a2" ASCII with null terminator.
             protocol_id: 1,
             expire_timestamp: 3,
             data: [5; 1024],
@@ -445,14 +471,27 @@ mod tests {
     }
 
     #[test]
+    fn encode_decode_disconnect_packet() {
+        let mut buffer = [0u8; NETCODE_MAX_PACKET_BYTES];
+        let key = b"an example very very secret key."; // 32-bytes
+        let packet = Packet::Disconnect;
+        let protocol_id = 12;
+        let sequence = 1;
+        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key)), false).unwrap();
+        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None, false).unwrap();
+        assert_eq!(sequence, d_sequence);
+        assert_eq!(packet, d_packet);
+    }
+
+    #[test]
     fn encrypt_decrypt_disconnect_packet() {
         let mut buffer = [0u8; NETCODE_MAX_PACKET_BYTES];
         let key = b"an example very very secret key."; // 32-bytes
         let packet = Packet::Disconnect;
         let protocol_id = 12;
         let sequence = 1;
-        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key))).unwrap();
-        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None).unwrap();
+        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key)), true).unwrap();
+        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None, true).unwrap();
         assert_eq!(sequence, d_sequence);
         assert_eq!(packet, d_packet);
     }
@@ -464,8 +503,8 @@ mod tests {
         let packet = Packet::ConnectionDenied;
         let protocol_id = 12;
         let sequence = 2;
-        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key))).unwrap();
-        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None).unwrap();
+        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key)), true).unwrap();
+        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None, true).unwrap();
         assert_eq!(sequence, d_sequence);
         assert_eq!(packet, d_packet);
     }
@@ -478,8 +517,8 @@ mod tests {
         let packet = Packet::Payload(&payload);
         let protocol_id = 12;
         let sequence = 2;
-        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key))).unwrap();
-        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None).unwrap();
+        let len = packet.encode(&mut buffer, protocol_id, Some((sequence, key)), true).unwrap();
+        let (d_sequence, d_packet) = Packet::decode(&mut buffer[..len], protocol_id, Some(key), None, true).unwrap();
         assert_eq!(sequence, d_sequence);
         match d_packet {
             Packet::Payload(ref p) => assert_eq!(&payload, p),

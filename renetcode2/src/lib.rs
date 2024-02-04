@@ -1,7 +1,7 @@
 //! Renetcode is a simple connection based client/server protocol agnostic to the transport layer,
-//! was developed be used in games with UDP in mind. Implements the Netcode 1.02 standard, available
-//! [here][standard] and the original implementation in C++ is available in the [netcode][netcode]
-//! repository.
+//! was developed be used in games with UDP in mind. Implements the Netcode 1.a2 standard with `renet2`
+//! extensions. The standard is available [here][standard] and the original implementation in C++ is
+//! available in the [netcode][netcode] repository. The extensions are available in `NETCODE_EXTENSIONS.md`.
 //!
 //! Has the following feature:
 //! - Encrypted and signed packets
@@ -28,12 +28,13 @@ mod token;
 pub use client::{ClientAuthentication, DisconnectReason, NetcodeClient};
 pub use crypto::generate_random_bytes;
 pub use error::NetcodeError;
+pub use packet::{Packet, PacketType};
 pub use server::{NetcodeServer, ServerAuthentication, ServerConfig, ServerResult};
 pub use token::{ConnectToken, TokenGenerationError};
 
 use std::time::Duration;
 
-const NETCODE_VERSION_INFO: &[u8; 13] = b"NETCODE 1.02\0";
+const NETCODE_VERSION_INFO: &[u8; 13] = b"NETCODE 1.a2\0"; //Netcode v1.02 with renet2 extensions (version 'a')
 const NETCODE_MAX_CLIENTS: usize = 1024;
 const NETCODE_MAX_PENDING_CLIENTS: usize = NETCODE_MAX_CLIENTS * 4;
 
@@ -57,3 +58,6 @@ const NETCODE_CONNECT_TOKEN_XNONCE_BYTES: usize = 24;
 
 const NETCODE_ADDITIONAL_DATA_SIZE: usize = 13 + 8 + 8;
 const NETCODE_SEND_RATE: Duration = Duration::from_millis(250);
+
+/// The tag size of encoded (unencrypted) packets.
+const ENCODED_PACKET_TAG_BYTES: usize = 8;
