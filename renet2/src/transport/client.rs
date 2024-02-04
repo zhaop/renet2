@@ -1,50 +1,67 @@
-use std::{
-    io,
-    net::{SocketAddr, UdpSocket},
-    time::Duration,
-};
+use std::{io, net::SocketAddr, time::Duration};
 
 use renetcode2::{ClientAuthentication, DisconnectReason, NetcodeClient, NetcodeError, NETCODE_MAX_PACKET_BYTES};
 
 use crate::{remote_connection::RenetClient, ClientId};
 
-use super::NetcodeTransportError;
+use super::{NetcodeTransportError, TransportSocket};
 
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::system::Resource))]
 pub struct NetcodeClientTransport {
-    socket: UdpSocket,
+    socket: Box<dyn TransportSocket>,
     netcode_client: NetcodeClient,
     buffer: [u8; NETCODE_MAX_PACKET_BYTES],
 }
 
 impl NetcodeClientTransport {
-    pub fn new(current_time: Duration, authentication: ClientAuthentication, socket: UdpSocket) -> Result<Self, NetcodeError> {
-        socket.set_nonblocking(true)?;
+    /// Makes a new client transport with the given [`TransportSocket`].
+    pub fn new(current_time: Duration, authentication: ClientAuthentication, socket: impl TransportSocket) -> Result<Self, NetcodeError> {
         let netcode_client = NetcodeClient::new(current_time, authentication)?;
 
         Ok(Self {
-            buffer: [0u8; NETCODE_MAX_PACKET_BYTES],
-            socket,
+            socket: Box::new(socket),
             netcode_client,
+            buffer: [0u8; NETCODE_MAX_PACKET_BYTES],
         })
     }
 
+    /// Gets the client's [`SocketAddr`].
+    ///
+    /// Will return an error if the client doesn't have an address (e.g. a WebTransport client).
     pub fn addr(&self) -> io::Result<SocketAddr> {
-        self.socket.local_addr()
+        self.socket.addr()
     }
 
+    /// Returns the client's id.
     pub fn client_id(&self) -> ClientId {
         ClientId(self.netcode_client.client_id())
     }
 
+    /// Returns `true` if the netcode client is connected.
+    pub fn is_connected(&self) -> bool {
+        self.netcode_client.is_connected()
+    }
+
+    /// Returns `true` if the netcode client is connecting.
+    pub fn is_connecting(&self) -> bool {
+        self.netcode_client.is_connecting()
+    }
+
+    /// Returns `true` if the netcode client is disconnected.
+    pub fn is_disconnected(&self) -> bool {
+        self.netcode_client.is_disconnected()
+    }
+
     /// Returns the duration since the client last received a packet.
-    /// Usefull to detect timeouts.
+    ///
+    /// Useful to detect timeouts.
     pub fn time_since_last_received_packet(&self) -> Duration {
         self.netcode_client.time_since_last_received_packet()
     }
 
-    /// Disconnect the client from the transport layer.
+    /// Disconnects the client from the transport layer.
+    ///
     /// This sends the disconnect packet instantly, use this when closing/exiting games,
     /// should use [RenetClient::disconnect][crate::RenetClient::disconnect] otherwise.
     pub fn disconnect(&mut self) {
@@ -54,7 +71,7 @@ impl NetcodeClientTransport {
 
         match self.netcode_client.disconnect() {
             Ok((addr, packet)) => {
-                if let Err(e) = self.socket.send_to(packet, addr) {
+                if let Err(e) = self.socket.send(addr, packet) {
                     log::error!("Failed to send disconnect packet: {e}");
                 }
             }
@@ -67,8 +84,9 @@ impl NetcodeClientTransport {
         self.netcode_client.disconnect_reason()
     }
 
-    /// Send packets to the server.
-    /// Should be called every tick
+    /// Sends packets to the server.
+    ///
+    /// Should be called every tick.
     pub fn send_packets(&mut self, connection: &mut RenetClient) -> Result<(), NetcodeTransportError> {
         if let Some(reason) = self.netcode_client.disconnect_reason() {
             return Err(NetcodeError::Disconnected(reason).into());
@@ -77,7 +95,7 @@ impl NetcodeClientTransport {
         let packets = connection.get_packets_to_send();
         for packet in packets {
             let (addr, payload) = self.netcode_client.generate_payload_packet(&packet)?;
-            self.socket.send_to(payload, addr)?;
+            self.socket.send(addr, payload)?;
         }
 
         Ok(())
@@ -88,13 +106,21 @@ impl NetcodeClientTransport {
         if let Some(reason) = self.netcode_client.disconnect_reason() {
             // Mark the client as disconnected if an error occured in the transport layer
             client.disconnect_due_to_transport();
+            self.socket.close();
 
             return Err(NetcodeError::Disconnected(reason).into());
         }
 
+        if self.socket.is_closed() {
+            client.disconnect_due_to_transport();
+        }
+
         if let Some(error) = client.disconnect_reason() {
             let (addr, disconnect_packet) = self.netcode_client.disconnect()?;
-            self.socket.send_to(disconnect_packet, addr)?;
+            if !self.socket.is_closed() {
+                self.socket.send(addr, disconnect_packet)?;
+                self.socket.close();
+            }
             return Err(error.into());
         }
 
@@ -104,8 +130,10 @@ impl NetcodeClientTransport {
             client.set_connecting();
         }
 
+        self.socket.preupdate();
+
         loop {
-            let packet = match self.socket.recv_from(&mut self.buffer) {
+            let packet = match self.socket.try_recv(&mut self.buffer) {
                 Ok((len, addr)) => {
                     if addr != self.netcode_client.server_addr() {
                         log::debug!("Discarded packet from unknown server {:?}", addr);
@@ -125,8 +153,10 @@ impl NetcodeClientTransport {
         }
 
         if let Some((packet, addr)) = self.netcode_client.update(duration) {
-            self.socket.send_to(packet, addr)?;
+            self.socket.send(addr, packet)?;
         }
+
+        self.socket.postupdate();
 
         Ok(())
     }

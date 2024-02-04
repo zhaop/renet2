@@ -7,7 +7,8 @@ use bevy::{
 };
 use bevy_egui::{EguiContexts, EguiPlugin};
 use bevy_renet2::{
-    renet2::{ClientId, RenetClient},
+    client_connected,
+    renet2::{transport::NativeSocket, ClientId, RenetClient},
     RenetClientPlugin,
 };
 use demo_bevy::{
@@ -63,7 +64,7 @@ fn add_netcode_network(app: &mut App) {
         user_data: None,
     };
 
-    let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+    let transport = NetcodeClientTransport::new(current_time, authentication, NativeSocket::new(socket).unwrap()).unwrap();
 
     app.insert_resource(client);
     app.insert_resource(transport);
