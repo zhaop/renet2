@@ -1,11 +1,14 @@
-# Renet
+# Renet2
 
-[![Latest version](https://img.shields.io/crates/v/renet.svg)](https://crates.io/crates/renet)
-[![Documentation](https://docs.rs/renet/badge.svg)](https://docs.rs/renet)
+[![Latest version](https://img.shields.io/crates/v/renet2.svg)](https://crates.io/crates/renet2)
+[![Documentation](https://docs.rs/renet2/badge.svg)](https://docs.rs/renet2)
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 
-Renet is a network library for Server/Client games written in rust. It is focused on fast-paced games such as FPS, and competitive games.
+*Fork of [renet](https://github.com/lucaspoffo/renet)*
+
+Renet2 is a network library for Server/Client games written in rust. It is focused on fast-paced games such as FPS, and competitive games.
+
 Provides the following features:
 
 - Client/Server connection management
@@ -14,7 +17,7 @@ Provides the following features:
     - ReliableUnordered: garantee of message delivery but not order
     - Unreliable: no garantee of message delivery or order
 - Packet fragmention and reassembly
-- Authentication and encryption, using [renetcode](https://github.com/lucaspoffo/renet/tree/master/renetcode)
+- Authentication and encryption, using [renetcode2](https://github.com/UkoeHB/renet2/tree/master/renetcode2)
     - The transport layer can be customizable. The default transport can be disabled and replaced with a custom one
 
 ## Channels
@@ -157,7 +160,7 @@ loop {
 
 ## Demos
 
-You can checkout the [echo example](https://github.com/lucaspoffo/renet/blob/master/renet/examples/echo.rs) for a simple usage of the library. Usage:
+You can checkout the [echo example](https://github.com/UkoeHb/renet2/blob/master/renet2/examples/echo.rs) for a simple usage of the library. Usage:
 
 - Server: `cargo run --example echo -- server 5000`
 - Client: `cargo run --example echo -- client 127.0.0.1:5000 CoolNickName`
@@ -172,7 +175,7 @@ Simple bevy application to demonstrate how you could replicate entities and send
 
 [Bevy Demo.webm](https://user-images.githubusercontent.com/35241085/180664609-f8c969e0-d313-45c0-9c04-8a116896d0bd.webm)
 
-[Repository](https://github.com/lucaspoffo/renet/tree/master/demo_bevy)
+[Repository](https://github.com/UkoeHb/renet2/tree/master/demo_bevy)
 </details>
 
 <details><summary>Chat Demo</summary>
@@ -183,17 +186,17 @@ Simple chat application made with egui to demonstrate how you could handle error
 
 [Chat Demo.webm](https://user-images.githubusercontent.com/35241085/180664911-0baf7b35-c9d4-43ff-b793-5955060adebc.webm)
 
-[Repository](https://github.com/lucaspoffo/renet/tree/master/demo_chat)
+[Repository](https://github.com/UkoeHb/renet2/tree/master/demo_chat)
 </details>
 
 ## Plugins
 
-Checkout [bevy_renet](https://github.com/lucaspoffo/renet/tree/master/bevy_renet) if you want to use renet as a plugin with the [Bevy engine](https://bevyengine.org/).
+Checkout [bevy_renet2](https://github.com/UkoeHb/renet2/tree/master/bevy_renet2) if you want to use renet as a plugin with the [Bevy engine](https://bevyengine.org/).
 
-Checkout [renet_steam](https://github.com/lucaspoffo/renet/tree/master/renet_steam) if you want to use the steam transport layer instead of the default one.
+Checkout [renet2_steam](https://github.com/UkoeHb/renet2/tree/master/renet2_steam) if you want to use the steam transport layer instead of the default one.
 
 ## Visualizer
 
-Checkout [renet_visualizer](https://github.com/lucaspoffo/renet/tree/master/renet_visualizer) for a egui plugin to plot metrics data from renet clients and servers:
+Checkout [renet2_visualizer](https://github.com/UkoeHb/renet2/tree/master/renet2_visualizer) for an egui plugin to plot metrics data from renet clients and servers:
 
 https://user-images.githubusercontent.com/35241085/175834010-b1eafd77-7ea2-47dc-a915-a399099c7a99.mp4

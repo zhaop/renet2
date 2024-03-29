@@ -1,8 +1,8 @@
 use bincode::Options;
 use eframe::egui;
 use log::error;
-use renet::{transport::NetcodeClientTransport, ClientId, DefaultChannel, RenetClient};
-use renet_visualizer::RenetClientVisualizer;
+use renet2::{transport::NetcodeClientTransport, ClientId, DefaultChannel, RenetClient};
+use renet2_visualizer::RenetClientVisualizer;
 
 use std::{collections::HashMap, time::Instant};
 

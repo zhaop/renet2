@@ -1,0 +1,15 @@
+[package]
+name = "renetcode2"
+version = "0.0.1"
+description = "Server/Client network protocol library for multiplayer games"
+keywords = ["gamedev", "networking", "cryptography"]
+repository = "https://github.com/UkoeHB/renet2"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chacha20poly1305 = "0.10.0"
+log = "0.4.17"

@@ -6,15 +6,14 @@ use bevy::{
     window::PrimaryWindow,
 };
 use bevy_egui::{EguiContexts, EguiPlugin};
-use bevy_renet::{
-    client_connected,
-    renet::{ClientId, RenetClient},
+use bevy_renet2::{
+    renet2::{ClientId, RenetClient},
     RenetClientPlugin,
 };
 use demo_bevy::{
-    connection_config, setup_level, ClientChannel, NetworkedEntities, PlayerCommand, PlayerInput, ServerChannel, ServerMessages,
+    setup_level, ClientChannel, NetworkedEntities, PlayerCommand, PlayerInput, ServerChannel, ServerMessages,
 };
-use renet_visualizer::{RenetClientVisualizer, RenetVisualizerStyle};
+use renet2_visualizer::{RenetClientVisualizer, RenetVisualizerStyle};
 use smooth_bevy_cameras::{LookTransform, LookTransformBundle, LookTransformPlugin, Smoother};
 
 #[derive(Component)]
@@ -42,11 +41,12 @@ struct Connected;
 
 #[cfg(feature = "transport")]
 fn add_netcode_network(app: &mut App) {
-    use bevy_renet::renet::transport::{ClientAuthentication, NetcodeClientTransport, NetcodeTransportError};
-    use demo_bevy::PROTOCOL_ID;
+    use bevy_renet2::client_connected;
+    use bevy_renet2::renet2::transport::{ClientAuthentication, NetcodeClientTransport, NetcodeTransportError};
+    use demo_bevy::{connection_config, PROTOCOL_ID};
     use std::{net::UdpSocket, time::SystemTime};
 
-    app.add_plugins(bevy_renet::transport::NetcodeClientPlugin);
+    app.add_plugins(bevy_renet2::transport::NetcodeClientPlugin);
 
     app.configure_sets(Update, Connected.run_if(client_connected));
 
@@ -82,7 +82,9 @@ fn add_netcode_network(app: &mut App) {
 
 #[cfg(feature = "steam")]
 fn add_steam_network(app: &mut App) {
-    use renet_steam::bevy::{SteamClientPlugin, SteamClientTransport, SteamTransportError};
+    use bevy_renet2::client_connected;
+    use demo_bevy::connection_config;
+    use renet2_steam::bevy::{SteamClientPlugin, SteamClientTransport, SteamTransportError};
     use steamworks::{SingleClient, SteamId};
 
     let (steam_client, single) = steamworks::Client::init_app(480).unwrap();

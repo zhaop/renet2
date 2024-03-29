@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "renet",
+    "renet2",
     "demo_chat",
     "demo_bevy",
-    "renetcode",
-    "bevy_renet",
-    "renet_visualizer",
-    "renet_steam",
+    "renetcode2",
+    "bevy_renet2",
+    "renet2_visualizer",
+    "renet2_steam",
 ]
 resolver = "2"

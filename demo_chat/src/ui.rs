@@ -3,7 +3,7 @@ use eframe::{
     egui::{self, lerp, Color32, Layout, Pos2, Ui, Vec2},
     epaint::PathShape,
 };
-use renet::{
+use renet2::{
     transport::{ClientAuthentication, NetcodeClientTransport},
     ClientId, ConnectionConfig, DefaultChannel, RenetClient,
 };

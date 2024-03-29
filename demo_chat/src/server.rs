@@ -5,11 +5,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use renet::{
+use renet2::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
     ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
 };
-use renet_visualizer::RenetServerVisualizer;
+use renet2_visualizer::RenetServerVisualizer;
 
 use crate::{ClientMessages, Message, ServerMessages, Username, PROTOCOL_ID};
 use bincode::Options;
