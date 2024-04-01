@@ -1,11 +1,13 @@
 use std::{error::Error, fmt};
 
 mod client;
+mod memory_socket;
 mod native_socket;
 mod server;
 mod transport_socket;
 
 pub use client::*;
+pub use memory_socket::*;
 pub use native_socket::*;
 pub use server::*;
 pub use transport_socket::*;
