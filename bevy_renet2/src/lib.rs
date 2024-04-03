@@ -1,6 +1,8 @@
 pub use renet2;
 
-use bevy::prelude::*;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
+use bevy_time::prelude::*;
 
 use renet2::{RenetClient, RenetServer, ServerEvent};
 

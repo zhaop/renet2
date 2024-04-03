@@ -20,7 +20,9 @@ name = "simple"
 required-features = ["serde", "transport"]
 
 [dependencies]
-bevy = {version = "0.13", default-features = false}
+bevy_app = {version = "0.13", default-features = false}
+bevy_ecs = {version = "0.13", default-features = false}
+bevy_time = {version = "0.13", default-features = false}
 renet2 = {path = "../renet2", version = "0.0.1", default-features = false, features = ["bevy"]}
 
 [dev-dependencies]
