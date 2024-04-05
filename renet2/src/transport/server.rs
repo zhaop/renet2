@@ -242,16 +242,34 @@ fn send_packet_to_client(
 }
 
 fn handle_server_result(server_result: ServerResult, sockets: &mut [Box<dyn TransportSocket>], reliable_server: &mut RenetServer) {
-    let mut send_packet = |packet: &[u8], socket_id: usize, addr: SocketAddr| {
+    let send_packet = |sockets: &mut [Box<dyn TransportSocket>], packet: &[u8], socket_id: usize, addr: SocketAddr| {
         if let Err(err) = sockets[socket_id].send(addr, packet) {
-            log::error!("Failed to send packet to {socket_id}/{addr}: {err}");
+            log::trace!("Failed to send packet to {socket_id}/{addr}: {err}");
         }
     };
 
     match server_result {
         ServerResult::None => {}
+        ServerResult::Error { addr, socket_id } => {
+            sockets[socket_id].disconnect(addr);
+        }
+        ServerResult::ConnectionDenied { addr, socket_id, payload } => {
+            if let Some(payload) = payload {
+                send_packet(sockets, payload, socket_id, addr);
+            }
+            sockets[socket_id].connection_denied(addr);
+        }
+        ServerResult::ConnectionAccepted {
+            client_id,
+            addr,
+            socket_id,
+            payload,
+        } => {
+            sockets[socket_id].connection_accepted(client_id, addr);
+            send_packet(sockets, payload, socket_id, addr);
+        }
         ServerResult::PacketToSend { payload, addr, socket_id } => {
-            send_packet(payload, socket_id, addr);
+            send_packet(sockets, payload, socket_id, addr);
         }
         ServerResult::Payload { client_id, payload } => {
             let client_id = ClientId::from_raw(client_id);
@@ -267,7 +285,7 @@ fn handle_server_result(server_result: ServerResult, sockets: &mut [Box<dyn Tran
             socket_id,
         } => {
             reliable_server.add_connection(ClientId::from_raw(client_id));
-            send_packet(payload, socket_id, addr);
+            send_packet(sockets, payload, socket_id, addr);
         }
         ServerResult::ClientDisconnected {
             client_id,
@@ -277,7 +295,7 @@ fn handle_server_result(server_result: ServerResult, sockets: &mut [Box<dyn Tran
         } => {
             reliable_server.remove_connection(ClientId::from_raw(client_id));
             if let Some(payload) = payload {
-                send_packet(payload, socket_id, addr);
+                send_packet(sockets, payload, socket_id, addr);
             }
             sockets[socket_id].disconnect(addr);
         }

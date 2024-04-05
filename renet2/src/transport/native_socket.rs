@@ -30,6 +30,8 @@ impl TransportSocket for NativeSocket {
     }
 
     fn close(&mut self) {}
+    fn connection_denied(&mut self, _: SocketAddr) {}
+    fn connection_accepted(&mut self, _: u64, _: SocketAddr) {}
     fn disconnect(&mut self, _: SocketAddr) {}
     fn preupdate(&mut self) {}
 

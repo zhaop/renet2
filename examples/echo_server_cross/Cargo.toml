@@ -1,0 +1,19 @@
+[package]
+name = "echo_server_cross"
+version = "0.1.0"
+edition = "2021"
+keywords = ["gamedev", "networking", "transport", "example"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/UkoeHB/renet2"
+description = "Server example transport for WebTransport"
+
+[dependencies]
+base64 = "0.22"
+env_logger = "0.11"
+log = "0.4"
+futures = "0.3"
+tokio = "1.32"
+
+renet2 = { path = "../../renet2", default-features = false, features = ["native_transport", "wt_server_transport"] }
+renetcode2 = { path = "../../renetcode2" }

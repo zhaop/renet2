@@ -21,6 +21,8 @@ pub trait TransportSocket: Debug + Send + Sync + 'static {
     fn is_encrypted(&self) -> bool;
 
     /// Gets the data source's `SocketAddr`.
+    ///
+    /// Returns an error if there is no meaningful address. Server sockets should always have an address.
     fn addr(&self) -> std::io::Result<SocketAddr>;
 
     /// Checks if the data source is closed.
@@ -31,6 +33,17 @@ pub trait TransportSocket: Debug + Send + Sync + 'static {
     /// This should disconnect any remote connections that are being tracked.
     fn close(&mut self);
 
+    /// Notifies the data source that an address's connection request was denied.
+    ///
+    /// This can be used to manage fresh connections if the internal socket needs to assign resources to
+    /// clients. Only connections that are not denied should be assigned resources.
+    fn connection_denied(&mut self, addr: SocketAddr);
+
+    /// Notifies the data source that an address's connection request was accepted.
+    ///
+    /// This can be used to clean up older sessions tied to the same client id.
+    fn connection_accepted(&mut self, client_id: u64, addr: SocketAddr);
+
     /// Disconnects a remote connection with the given address.
     fn disconnect(&mut self, addr: SocketAddr);
 
@@ -40,11 +53,15 @@ pub trait TransportSocket: Debug + Send + Sync + 'static {
     /// Tries to receive the next packet sent to this data source.
     ///
     /// Returns the number of bytes written to the buffer, and the source address of the bytes.
+    ///
+    /// Should return [`io::ErrorKind::WouldBlock`] when no packets are available.
     fn try_recv(&mut self, buffer: &mut [u8]) -> std::io::Result<(usize, SocketAddr)>;
 
     /// Handles data-source-specific logic that must run after sending packets.
     fn postupdate(&mut self);
 
     /// Sends a packet to the designated address.
+    ///
+    /// Should return [`io::ErrorKind::ConnectionAborted`] if the destination's connection was closed internally.
     fn send(&mut self, addr: SocketAddr, packet: &[u8]) -> Result<(), NetcodeTransportError>;
 }

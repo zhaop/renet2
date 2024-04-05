@@ -1,11 +1,14 @@
 [workspace]
 members = [
-    "renet2",
+    "examples/echo_client_native",
+    #"examples/echo_client_wt", # requires wasm32-unknown-unknown target
+    "examples/echo_server_cross",
     "demo_chat",
     "demo_bevy",
-    "renetcode2",
     "bevy_renet2",
+    "renet2",
     "renet2_visualizer",
     "renet2_steam",
+    "renetcode2",
 ]
 resolver = "2"

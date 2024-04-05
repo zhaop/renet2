@@ -95,7 +95,7 @@ fn handle_server_result(
             let text = format!("{}: {}", username, text);
             received_messages.push(text);
         }
-        ServerResult::PacketToSend { payload, addr, .. } => {
+        ServerResult::ConnectionAccepted { payload, addr, .. } | ServerResult::PacketToSend { payload, addr, .. } => {
             socket.send_to(payload, addr).unwrap();
         }
         ServerResult::ClientConnected {
@@ -119,6 +119,8 @@ fn handle_server_result(
                 socket.send_to(payload, addr).unwrap();
             }
         }
+        ServerResult::ConnectionDenied { .. } => {}
+        ServerResult::Error { .. } => {}
         ServerResult::None => {}
     }
 }

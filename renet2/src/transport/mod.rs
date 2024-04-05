@@ -1,16 +1,28 @@
 use std::{error::Error, fmt};
 
 mod client;
+#[cfg(feature = "memory_transport")]
+#[cfg_attr(docsrs, doc(cfg(feature = "memory_transport")))]
 mod memory_socket;
+#[cfg(all(feature = "native_transport", not(target_family = "wasm")))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "native_transport", not(target_family = "wasm")))))]
 mod native_socket;
 mod server;
 mod transport_socket;
+#[cfg(any(feature = "wt_server_transport", feature = "wt_client_transport"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "wt_server_transport", feature = "wt_client_transport"))))]
+mod webtransport_socket;
 
 pub use client::*;
-pub use memory_socket::*;
-pub use native_socket::*;
 pub use server::*;
 pub use transport_socket::*;
+
+#[cfg(feature = "memory_transport")]
+pub use memory_socket::*;
+#[cfg(all(feature = "native_transport", not(target_family = "wasm")))]
+pub use native_socket::*;
+#[cfg(any(feature = "wt_server_transport", feature = "wt_client_transport"))]
+pub use webtransport_socket::*;
 
 pub use renetcode2::{
     generate_random_bytes, ClientAuthentication, ConnectToken, DisconnectReason as NetcodeDisconnectReason, NetcodeError,

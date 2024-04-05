@@ -68,6 +68,25 @@ pub struct NetcodeServer {
 pub enum ServerResult<'a, 's> {
     /// Nothing needs to be done.
     None,
+    /// An error occurred while processing the packet, the address should be rejected.
+    Error { socket_id: usize, addr: SocketAddr },
+    /// A connection request was valid but denied because of connection limits or a token already in use.
+    ///
+    /// If there is a payload it should be sent to the address.
+    ConnectionDenied {
+        socket_id: usize,
+        addr: SocketAddr,
+        payload: Option<&'s mut [u8]>,
+    },
+    /// A connection request was accepted.
+    ///
+    /// The payload should be sent to the address.
+    ConnectionAccepted {
+        client_id: u64,
+        socket_id: usize,
+        addr: SocketAddr,
+        payload: &'s mut [u8],
+    },
     /// A packet to be sent back to the processed address.
     PacketToSend {
         socket_id: usize,
@@ -312,16 +331,49 @@ impl NetcodeServer {
             }
         }
 
-        let addr_already_connected = find_client_mut_by_addr(&mut self.clients, socket_id, addr).is_some();
-        let id_already_connected = find_client_mut_by_id(&mut self.clients, connect_token.client_id).is_some();
-        if id_already_connected || addr_already_connected {
+        if let Some((_, connection)) = find_client_mut_by_addr(&mut self.clients, socket_id, addr) {
+            // This branch should be unreachable since connection requests are ignored for already-connected addresses.
+
+            if connection.client_id == connect_token.client_id {
+                log::debug!(
+                    "Connection request ignored: client {} already connected (socket id: {}, address: {}).",
+                    connection.client_id,
+                    socket_id,
+                    addr
+                );
+
+                return Ok(ServerResult::None);
+            } else {
+                log::debug!(
+                    "Connection request denied: (socket id: {}, address: {}) tried connecting as client {} but is already \
+                    client {}.",
+                    socket_id,
+                    addr,
+                    connect_token.client_id,
+                    connection.client_id,
+                );
+
+                return Ok(ServerResult::ConnectionDenied {
+                    addr,
+                    socket_id,
+                    payload: None,
+                });
+            }
+        } else if let Some(connection) = find_client_mut_by_id(&mut self.clients, connect_token.client_id) {
             log::debug!(
-                "Connection request denied: client {} already connected (socket id: {}, address: {}).",
-                connect_token.client_id,
+                "Connection request denied: (socket id: {}, address: {}) tried connecting as client {} but a different \
+                address (socket id: {}, address: {}) is connected as that client.",
                 socket_id,
-                addr
+                addr,
+                connect_token.client_id,
+                connection.socket_id,
+                connection.addr,
             );
-            return Ok(ServerResult::None);
+            return Ok(ServerResult::ConnectionDenied {
+                addr,
+                socket_id,
+                payload: None,
+            });
         }
 
         if !self.pending_clients.contains_key(&(socket_id, addr)) && self.pending_clients.len() >= NETCODE_MAX_PENDING_CLIENTS {
@@ -329,7 +381,11 @@ impl NetcodeServer {
                 "Connection request denied: reached max amount allowed of pending clients ({}).",
                 NETCODE_MAX_PENDING_CLIENTS
             );
-            return Ok(ServerResult::None);
+            return Ok(ServerResult::ConnectionDenied {
+                addr,
+                socket_id,
+                payload: None,
+            });
         }
 
         let mut mac = [0u8; NETCODE_MAC_BYTES];
@@ -342,8 +398,12 @@ impl NetcodeServer {
         };
 
         if !self.find_or_add_connect_token_entry(connect_token_entry) {
-            log::warn!("Connection request denied: unable to add connect token entry");
-            return Ok(ServerResult::None);
+            log::warn!("Connection request denied: connect token already has an entry for a different address");
+            return Ok(ServerResult::ConnectionDenied {
+                addr,
+                socket_id,
+                payload: None,
+            });
         }
 
         if self.clients.iter().flatten().count() >= self.max_clients {
@@ -356,10 +416,10 @@ impl NetcodeServer {
                 self.sockets[socket_id].needs_encryption,
             )?;
             self.global_sequence += 1;
-            return Ok(ServerResult::PacketToSend {
+            return Ok(ServerResult::ConnectionDenied {
                 socket_id,
                 addr,
-                payload: &mut self.out[..len],
+                payload: Some(&mut self.out[..len]),
             });
         }
 
@@ -400,7 +460,8 @@ impl NetcodeServer {
         pending.last_packet_received_time = self.current_time;
         pending.last_packet_send_time = self.current_time;
 
-        Ok(ServerResult::PacketToSend {
+        Ok(ServerResult::ConnectionAccepted {
+            client_id: connect_token.client_id,
             socket_id,
             addr,
             payload: &mut self.out[..len],
@@ -440,7 +501,7 @@ impl NetcodeServer {
         match self.process_packet_internal(socket_id, addr, buffer) {
             Err(e) => {
                 log::error!("Failed to process packet: {}", e);
-                ServerResult::None
+                ServerResult::Error { socket_id, addr }
             }
             Ok(r) => r,
         }
@@ -555,10 +616,10 @@ impl NetcodeServer {
                             pending.state = ConnectionState::Disconnected;
                             self.global_sequence += 1;
                             pending.last_packet_send_time = self.current_time;
-                            return Ok(ServerResult::PacketToSend {
+                            return Ok(ServerResult::ConnectionDenied {
                                 socket_id,
                                 addr,
-                                payload: &mut self.out[..len],
+                                payload: Some(&mut self.out[..len]),
                             });
                         }
                         Some(client_index) => {
@@ -863,9 +924,9 @@ mod tests {
         let (client_packet, _) = client.update(Duration::ZERO).unwrap();
 
         let result = server.process_packet(0, client_addr, client_packet);
-        assert!(matches!(result, ServerResult::PacketToSend { .. }));
+        assert!(matches!(result, ServerResult::ConnectionAccepted { .. }));
         match result {
-            ServerResult::PacketToSend { payload, .. } => client.process_packet(payload),
+            ServerResult::ConnectionAccepted { payload, .. } => client.process_packet(payload),
             _ => unreachable!(),
         };
 
