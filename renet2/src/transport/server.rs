@@ -3,6 +3,7 @@ use std::{io, net::SocketAddr, time::Duration};
 use renetcode2::{NetcodeServer, ServerConfig, ServerResult, NETCODE_MAX_PACKET_BYTES, NETCODE_USER_DATA_BYTES};
 use renetcode2::{ServerAuthentication, ServerSocketConfig};
 
+use crate::packet::Payload;
 use crate::ClientId;
 use crate::RenetServer;
 
@@ -192,22 +193,50 @@ impl NetcodeServerTransport {
 
     /// Sends packets to connected clients.
     pub fn send_packets(&mut self, server: &mut RenetServer) {
-        'clients: for client_id in server.clients_id() {
+        //TODO: it isn't necessary to allocate client ids here, just use one big vec of packets for all clients
+        // - also, the vec can be cached in RenetServer for reuse, and likewise with the internal pieces of packets
+        for client_id in server.clients_id() {
             let packets = server.get_packets_to_send(client_id).unwrap();
             for packet in packets {
-                match self.netcode_server.generate_payload_packet(client_id.raw(), &packet) {
-                    Ok((socket_id, addr, payload)) => {
-                        if let Err(e) = self.sockets[socket_id].send(addr, payload) {
-                            log::error!("Failed to send packet to client {client_id} ({socket_id}/{addr}): {e}");
-                            continue 'clients;
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to encrypt payload packet for client {client_id}: {e}");
-                        continue 'clients;
-                    }
+                if !send_packet_to_client(&mut self.sockets, &mut self.netcode_server, server, &packet, client_id) {
+                    break;
                 }
             }
+        }
+    }
+}
+
+/// Sends a packet to a client.
+///
+/// Disconnects the client if its address connection is broken.
+fn send_packet_to_client(
+    sockets: &mut [Box<dyn TransportSocket>],
+    netcode_server: &mut NetcodeServer,
+    reliable_server: &mut RenetServer,
+    packet: &Payload,
+    client_id: ClientId,
+) -> bool {
+    let (send_result, socket_id, addr) = match netcode_server.generate_payload_packet(client_id.raw(), packet) {
+        Ok((socket_id, addr, payload)) => (sockets[socket_id].send(addr, payload), socket_id, addr),
+        Err(e) => {
+            log::error!("Failed to encrypt payload packet for client {client_id}: {e}");
+            return false;
+        }
+    };
+
+    match send_result {
+        Ok(()) => true,
+        Err(NetcodeTransportError::IO(ref e)) if e.kind() == io::ErrorKind::ConnectionAborted => {
+            // Manually disconnect the client if the client's address is disconnected.
+            reliable_server.remove_connection(client_id);
+            // Ignore the server result since this client is not connected.
+            let _ = netcode_server.disconnect(client_id.raw());
+
+            false
+        }
+        Err(e) => {
+            log::error!("Failed to send packet to client {client_id} ({socket_id}/{addr}): {e}");
+            false
         }
     }
 }
