@@ -20,10 +20,12 @@ Provides the following features:
 - Authentication and encryption, using [renetcode2](https://github.com/UkoeHB/renet2/tree/master/renetcode2)
     - The transport layer can be customizable. The default transport can be disabled and replaced with a custom one.
     - The underlying data transport/socket can be customized. Both unencrypted (e.g. UDP) and encrypted (e.g. WebTransport) data transports are supported.
+- Built-in UDP sockets, in-memory sockets, and WebTransport sockets for flexible, cross-platform networking using the `netcode` protocol.
 
 Renet2 extends the original [netcode](https://github.com/networkprotocol/netcode) protocol with:
 
 - Optional packet encryption. This supports data transports that do their own encryption.
+- Servers with multiple concurrent data sources (e.g. UDP sockets and WebTransport).
 
 See `renetcode2/NETCODE_EXTENSIONS.md`.
 
