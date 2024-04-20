@@ -32,7 +32,7 @@ struct BotId(u64);
 
 #[cfg(feature = "transport")]
 fn add_netcode_network(app: &mut App) {
-    use bevy_renet2::renet2::transport::{NativeSocket, NetcodeServerTransport, ServerAuthentication, ServerConfig, ServerSocketConfig};
+    use bevy_renet2::renet2::transport::{NativeSocket, NetcodeServerTransport, ServerAuthentication, ServerSetupConfig};
     use bevy_renet2::transport::NetcodeServerPlugin;
     use demo_bevy::{connection_config, PROTOCOL_ID};
     use std::{net::UdpSocket, time::SystemTime};
@@ -44,11 +44,11 @@ fn add_netcode_network(app: &mut App) {
     let public_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind(public_addr).unwrap();
     let current_time: std::time::Duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let server_config = ServerConfig {
+    let server_config = ServerSetupConfig {
         current_time,
         max_clients: 64,
         protocol_id: PROTOCOL_ID,
-        sockets: vec![ServerSocketConfig::new(vec![public_addr])],
+        socket_addresses: vec![vec![public_addr]],
         authentication: ServerAuthentication::Unsecure,
     };
 

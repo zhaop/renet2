@@ -184,7 +184,7 @@ impl NetcodeServerTransport {
             socket.postupdate();
         }
 
-        if transport_errors.len() > 0 {
+        if !transport_errors.is_empty() {
             return Err(transport_errors);
         }
 

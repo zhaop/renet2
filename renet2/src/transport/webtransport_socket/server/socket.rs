@@ -126,7 +126,7 @@ impl PendingClient {
         if self.buffered_response.is_some() {
             return;
         }
-        self.buffered_response = Some(Bytes::copy_from_slice(&packet));
+        self.buffered_response = Some(Bytes::copy_from_slice(packet));
     }
 }
 
@@ -618,7 +618,7 @@ impl TransportSocket for WebTransportServer {
         }
 
         // End condition after all clients have been drained.
-        return Err(std::io::Error::from(ErrorKind::WouldBlock));
+        Err(std::io::Error::from(ErrorKind::WouldBlock))
     }
 
     fn postupdate(&mut self) {
@@ -671,7 +671,7 @@ impl TransportSocket for WebTransportServer {
             return Err(std::io::Error::from(ErrorKind::ConnectionAborted).into());
         };
 
-        let data = Bytes::copy_from_slice(&packet);
+        let data = Bytes::copy_from_slice(packet);
         if let Err(err) = client_data.session.send_datagram(data) {
             // See https://www.rfc-editor.org/rfc/rfc9114.html#errors
             match err.get_error_level() {
@@ -733,7 +733,7 @@ fn client_idx_from_addr(addr: SocketAddr) -> u64 {
 
     let mut idx = 0u64;
     for i in (0..4).rev() {
-        idx = idx << 16;
+        idx <<= 16;
         idx += ((octets[2 * i] as u64) << 8) + (octets[2 * i + 1] as u64);
     }
 
