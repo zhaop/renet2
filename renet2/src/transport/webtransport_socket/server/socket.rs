@@ -179,7 +179,9 @@ impl WebTransportServer {
         let max_clients = config.max_clients;
         let server_config = Self::create_server_config(config)?;
         let socket = std::net::UdpSocket::bind(target_addr)?;
-        let endpoint = quinn::Endpoint::new(EndpointConfig::default(), Some(server_config), socket, Arc::new(TokioRuntime))?;
+        let endpoint = handle.block_on(async move {
+            quinn::Endpoint::new(EndpointConfig::default(), Some(server_config), socket, Arc::new(TokioRuntime))
+        })?;
         let addr = endpoint.local_addr()?;
         let (sender, receiver) = mpsc::channel::<ClientConnectionResult>(max_clients);
         let client_iterator = Arc::new(AtomicU64::new(0));
