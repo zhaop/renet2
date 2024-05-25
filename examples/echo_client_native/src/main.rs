@@ -12,9 +12,22 @@ use renet2::{
 
 fn main() {
     env_logger::init();
+
+    // Wait for connection info.
+    // - Using an entire `tokio` runtime for this is heavy-handed, but `reqwest` requires it.
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let server_addr = runtime.block_on(async move {
+        reqwest::get("http://127.0.0.1:4433/native")
+            .await
+            .unwrap()
+            .json::<SocketAddr>()
+            .await
+            .unwrap()
+    });
+
+    // Set up the client transport.
     println!("Type to enter a message.");
 
-    let server_addr: SocketAddr = "127.0.0.1:4433".parse().unwrap();
     let client_socket = NativeSocket::new(UdpSocket::bind("127.0.0.1:0").unwrap()).unwrap();
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let client_id = current_time.as_millis() as u64;
@@ -28,8 +41,8 @@ fn main() {
 
     let mut transport = NetcodeClientTransport::new(current_time, authentication, client_socket).unwrap();
 
-    let connection_config = ConnectionConfig::default();
-    let mut client = RenetClient::new(connection_config);
+    // Run the client
+    let mut client = RenetClient::new(ConnectionConfig::default());
 
     let stdin_channel: Receiver<String> = spawn_stdin_channel();
     let mut last_updated = Instant::now();

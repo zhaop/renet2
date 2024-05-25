@@ -10,7 +10,10 @@ description = "Client example transport for UDP sockets"
 
 [dependencies]
 env_logger = "0.11"
+futures = "0.3"
 log = "0.4"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
 
 renet2 = { path = "../../renet2", default-features = false, features = ["native_transport"] }
 renetcode2 = { path = "../../renetcode2" }

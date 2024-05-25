@@ -9,11 +9,10 @@ repository = "https://github.com/UkoeHB/renet2"
 description = "Server example transport for WebTransport"
 
 [dependencies]
-base64 = "0.22"
 env_logger = "0.11"
 log = "0.4"
-futures = "0.3"
-tokio = "1.32"
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
 
-renet2 = { path = "../../renet2", default-features = false, features = ["native_transport", "wt_server_transport"] }
+renet2 = { path = "../../renet2", default-features = false, features = ["serde", "native_transport", "wt_server_transport"] }
 renetcode2 = { path = "../../renetcode2" }

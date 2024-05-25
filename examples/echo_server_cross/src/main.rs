@@ -1,58 +1,94 @@
-use base64::Engine;
-use futures::executor::block_on;
 use std::{
     net::{SocketAddr, UdpSocket},
-    thread,
     time::{Duration, Instant, SystemTime},
 };
+use warp::Filter;
 
 use log::{debug, info};
 use renet2::{
     transport::{
-        BoxedSocket, NativeSocket, NetcodeServerTransport, ServerSetupConfig, TransportSocket, WebTransportServer, WebTransportServerConfig,
+        BoxedSocket, NativeSocket, NetcodeServerTransport, ServerCertHash, ServerSetupConfig, TransportSocket, WebTransportServer,
+        WebTransportServerConfig,
     },
     ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
 };
 use renetcode2::ServerAuthentication;
 
-#[tokio::main]
-async fn main() {
-    env_logger::builder().filter_level(log::LevelFilter::Info).init();
-    for addr in tokio::net::lookup_host("localhost:4433").await.unwrap() {
-        info!("native socket address is {}", addr);
-    }
-    for addr in tokio::net::lookup_host("localhost:4434").await.unwrap() {
-        info!("webtransport socket address is {}", addr);
-    }
-    let future = server("127.0.0.1:4433".parse().unwrap(), "127.0.0.1:4434".parse().unwrap());
-    block_on(future);
+struct ClientConnectionInfo {
+    native_addr: String,
+    wt_addr: String,
+    cert_hash: ServerCertHash,
 }
 
-async fn server(public_addr_native: SocketAddr, public_addr_wt: SocketAddr) {
-    let native_socket = NativeSocket::new(UdpSocket::bind(public_addr_native).unwrap()).unwrap();
+fn main() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .filter_module("h3::server::connection", log::LevelFilter::Warn)
+        .init();
 
-    let wt_socket = {
-        let (transport_config, cert_hash) = WebTransportServerConfig::new_selfsigned(public_addr_wt, 10);
-        let cert_hash_b64 = base64::engine::general_purpose::STANDARD.encode(cert_hash.hash.as_ref());
-        info!("WT SERVER CERT HASH (PASTE ME TO CLIENTS): {:?}", cert_hash_b64);
-        WebTransportServer::new(transport_config, tokio::runtime::Handle::try_current().unwrap()).unwrap()
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+
+    let http_addr: SocketAddr = "127.0.0.1:4433".parse().unwrap();
+    let max_clients = 10;
+
+    // Native socket
+    let wildcard_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+    let native_socket = NativeSocket::new(UdpSocket::bind(wildcard_addr).unwrap()).unwrap();
+
+    // WebTransport socket
+    let (wt_socket, cert_hash) = {
+        let (config, cert_hash) = WebTransportServerConfig::new_selfsigned(wildcard_addr, max_clients);
+        (WebTransportServer::new(config, runtime.handle().clone()).unwrap(), cert_hash)
     };
 
+    // Save connection info
+    let client_connection_info = ClientConnectionInfo {
+        native_addr: native_socket.addr().unwrap().to_string().into(),
+        wt_addr: wt_socket.addr().unwrap().to_string().into(),
+        cert_hash,
+    };
+
+    // Setup netcode server transport
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let server_config = ServerSetupConfig {
         current_time,
-        max_clients: 10,
+        max_clients,
         protocol_id: 0,
         socket_addresses: vec![vec![native_socket.addr().unwrap()], vec![wt_socket.addr().unwrap()]],
         authentication: ServerAuthentication::Unsecure,
     };
-    let mut transport = NetcodeServerTransport::new_with_sockets(
+    let transport = NetcodeServerTransport::new_with_sockets(
         server_config,
         Vec::from([BoxedSocket::new(native_socket), BoxedSocket::new(wt_socket)]),
     )
     .unwrap();
-
     debug!("transport created");
+
+    // Run HTTP server for clients to get connection info.
+    runtime.spawn(async move { run_http_server(http_addr, client_connection_info).await });
+
+    // Run the renet server.
+    run_renet_server(transport);
+}
+
+async fn run_http_server(http_addr: SocketAddr, client_connection_info: ClientConnectionInfo) {
+    let native_addr = client_connection_info.native_addr;
+    let wt_addr = client_connection_info.wt_addr;
+    let cert_hash = client_connection_info.cert_hash;
+
+    let native = warp::path!("native").map(move || warp::reply::json(&native_addr));
+
+    let cors = warp::cors().allow_any_origin();
+    let wasm = warp::path!("wasm")
+        .map(move || warp::reply::json(&(&wt_addr, &cert_hash)))
+        .with(cors);
+
+    let routes = warp::get().and(native.or(wasm));
+
+    warp::serve(routes).run(http_addr).await;
+}
+
+fn run_renet_server(mut transport: NetcodeServerTransport) {
     let mut server: RenetServer = RenetServer::new(ConnectionConfig::default());
 
     let mut received_messages = vec![];
@@ -93,6 +129,6 @@ async fn server(public_addr_native: SocketAddr, public_addr_wt: SocketAddr) {
         }
 
         transport.send_packets(&mut server);
-        thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(Duration::from_millis(50));
     }
 }

@@ -30,7 +30,10 @@ impl Plugin for NetcodeServerPlugin {
 
         app.add_systems(
             PostUpdate,
-            (Self::send_packets.in_set(RenetSend), Self::disconnect_on_exit.after(exit_on_all_closed))
+            (
+                Self::send_packets.in_set(RenetSend),
+                Self::disconnect_on_exit.after(exit_on_all_closed),
+            )
                 .run_if(resource_exists::<NetcodeServerTransport>)
                 .run_if(resource_exists::<RenetServer>),
         );
@@ -77,7 +80,10 @@ impl Plugin for NetcodeClientPlugin {
         );
         app.add_systems(
             PostUpdate,
-            (Self::send_packets.in_set(RenetSend), Self::disconnect_on_exit.after(exit_on_all_closed))
+            (
+                Self::send_packets.in_set(RenetSend),
+                Self::disconnect_on_exit.after(exit_on_all_closed),
+            )
                 .run_if(resource_exists::<NetcodeClientTransport>)
                 .run_if(client_should_update()),
         );

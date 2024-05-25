@@ -21,7 +21,7 @@ default = ["native_transport"]
 bevy = ["dep:bevy_ecs", "dep:bevy_reflect"]
 
 # Enable serialization
-serde = ["dep:serde"]
+serde = ["dep:serde", "serde/serde_derive"]
 
 # Enable transports
 transport = ["dep:renetcode2"]

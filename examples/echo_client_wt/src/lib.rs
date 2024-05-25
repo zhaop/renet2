@@ -1,6 +1,6 @@
-use base64::Engine;
 use renet2::{transport::{CongestionControl, NetcodeClientTransport, ServerCertHash, WebTransportClient, WebTransportClientConfig}, ConnectionConfig, DefaultChannel, RenetClient};
 use renetcode2::ClientAuthentication;
+use std::net::SocketAddr;
 use std::time::Duration;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_timer::{SystemTime, UNIX_EPOCH};
@@ -15,15 +15,16 @@ pub struct ChatApplication {
 
 #[wasm_bindgen]
 impl ChatApplication {
-    // Todo: this doesn't need to be async or return a result.
     pub async fn new() -> Result<ChatApplication, JsValue> {
         console_error_panic_hook::set_once();
 
-        let server_addr = "127.0.0.1:4434".parse().unwrap();
-        // >>>>>>>>>>> INSERT SERVER CERT HASH HERE <<<<<<<<<<<
-        let server_cert_hash_b64 = "Rii+iLFgubepB2M3I42twNirxfURJVKHJNegpsk4KFM=";
-        let hash = base64::engine::general_purpose::STANDARD.decode(server_cert_hash_b64).unwrap();
+        // Wait for renet2 server connection info.
+        let (server_addr, server_cert_hash) = reqwest::get("http://127.0.0.1:4433/wasm")
+            .await.unwrap()
+            .json::<(SocketAddr, ServerCertHash)>()
+            .await.unwrap();
 
+        // Setup
         let connection_config = ConnectionConfig::default();
         let client = RenetClient::new(connection_config);
         let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
@@ -37,7 +38,7 @@ impl ChatApplication {
         let socket_config = WebTransportClientConfig{
             server_addr,
             congestion_control: CongestionControl::default(),
-            server_cert_hashes: Vec::from([ServerCertHash::try_from(hash).unwrap()]),
+            server_cert_hashes: Vec::from([server_cert_hash]),
         };
         let socket = WebTransportClient::new(socket_config);
 
