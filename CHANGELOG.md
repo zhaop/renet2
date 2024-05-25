@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.3 - 05/24/2024
+
+- Add `bevy_replicon_renet2` sub-crate.
+- Add `client_should_update` run condition to `bevy_renet2` to fix disconnect bug.
+
 ## 0.0.2 - 05/07/2024
 
 - Fix WebTransport server panicking on construction when not inside a tokio runtime.

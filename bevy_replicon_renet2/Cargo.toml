@@ -1,0 +1,52 @@
+[package]
+name = "bevy_replicon_renet2"
+version = "0.0.3"
+authors = [
+  "Hennadii Chernyshchyk <genaloner@gmail.com>",
+  "koe <ukoe@protonmail.com>",
+]
+edition = "2021"
+description = "Integration with renet2 for bevy_replicon"
+keywords = [
+  "bevy",
+  "multiplayer",
+  "netcode",
+  "replication",
+  "server-authoritative",
+]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/UkoeHB/renet2"
+
+[dependencies]
+bevy_replicon = { version = "0.25" }
+bevy_renet2 = { path = "../bevy_renet2", version = "0.0.3", default-features = false }
+bevy = { version = "0.13", default-features = false }
+
+[dev-dependencies]
+serde = "1.0"
+clap = { version = "4.1", features = ["derive"] }
+bevy_renet2 = { path = "../bevy_renet2", version = "0.0.3", features = ["native_transport"] }
+bevy = { version = "0.13", default-features = false, features = [
+  "bevy_text",
+  "bevy_ui",
+  "bevy_gizmos",
+  "x11",
+  "default_font",
+] }
+log = "0.4"
+tracing-subscriber = { version = "0.3", features = [ "env-filter", "std", "tracing-log" ] }
+
+[features]
+default = ["renet_serde", "transport"]
+
+# Re-exports of renet features
+renet_serde = ["bevy_renet2/serde"]
+transport = ["bevy_renet2/transport"]
+native_transport = ["transport", "bevy_renet2/native_transport"]
+memory_transport = ["transport", "bevy_renet2/memory_transport"]
+wt_server_transport = ["transport", "bevy_renet2/wt_server_transport"]
+wt_client_transport = ["transport", "bevy_renet2/wt_client_transport"]
+
+[[test]]
+name = "transport"
+required-features = ["native_transport"]

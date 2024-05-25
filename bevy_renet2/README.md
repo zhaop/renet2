@@ -23,14 +23,14 @@ app.insert_resource(server);
 app.add_plugin(NetcodeServerPlugin);
 let server_addr = "127.0.0.1:5000".parse().unwrap();
 let socket = UdpSocket::bind(server_addr).unwrap();
-let server_config = ServerConfig {
+let server_config = ServerSetupConfig {
     current_time: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap(),
-    max_clients: 64, 
+    max_clients: 64,
     protocol_id: 0,
-    server_addresses: vec![server_addr], 
+    socket_addresses: vec![vec![server_addr]],
     authentication: ServerAuthentication::Unsecure
 };
-let transport = NetcodeServerTransport::new(server_config, socket).unwrap();
+let transport = NetcodeServerTransport::new(server_config, NativeSocket::new(socket).unwrap()).unwrap();
 app.insert_resource(transport);
 
 app.add_system(send_message_system);
@@ -85,10 +85,11 @@ let authentication = ClientAuthentication::Unsecure {
     client_id: 0,
     user_data: None,
     protocol_id: 0,
+    socket_id: 0,
 };
 let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-let mut transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+let mut transport = NetcodeClientTransport::new(current_time, authentication, NativeSocket::new(socket).unwrap()).unwrap();
 
 app.insert_resource(transport);
 

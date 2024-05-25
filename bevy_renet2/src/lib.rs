@@ -59,7 +59,7 @@ impl RenetServerPlugin {
 
 impl Plugin for RenetClientPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreUpdate, Self::update_system.run_if(not(client_disconnected)));
+        app.add_systems(PreUpdate, Self::update_system.run_if(client_should_update()));
     }
 }
 
@@ -104,4 +104,13 @@ pub fn client_just_disconnected(mut last_connected: Local<bool>, client: Option<
     let just_disconnected = *last_connected && disconnected;
     *last_connected = !disconnected;
     just_disconnected
+}
+
+pub fn client_should_update() -> impl Condition<()> {
+    // (just_disconnected || !disconnected) && exists<RenetClient>
+    IntoSystem::into_system(
+        client_just_disconnected
+            .or_else(not(client_disconnected))
+            .and_then(resource_exists::<RenetClient>),
+    )
 }

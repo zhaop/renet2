@@ -6,6 +6,7 @@ members = [
     "demo_chat",
     "demo_bevy",
     "bevy_renet2",
+    "bevy_replicon_renet2",
     "renet2",
     "renet2_visualizer",
     "renet2_steam",

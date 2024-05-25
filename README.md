@@ -201,7 +201,9 @@ Simple chat application made with egui to demonstrate how you could handle error
 
 ## Plugins
 
-Checkout [bevy_renet2](https://github.com/UkoeHb/renet2/tree/master/bevy_renet2) if you want to use renet as a plugin with the [Bevy engine](https://bevyengine.org/).
+Checkout [bevy_renet2](https://github.com/UkoeHb/renet2/tree/master/bevy_renet2) if you want to use renet2 as a plugin with the [Bevy engine](https://bevyengine.org/).
+
+Checkout [bevy_replicon_renet2](https://github.com/UkoeHb/renet2/tree/master/bevy_replicon_renet2) if you want to use renet2 as a backend for [bevy_replicon](https://github.com/projectharmonia/bevy_replicon).
 
 Checkout [renet2_steam](https://github.com/UkoeHb/renet2/tree/master/renet2_steam) if you want to use the steam transport layer instead of the default one.
 
