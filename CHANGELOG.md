@@ -1,5 +1,9 @@
 # CHANGELOG
 
+##
+
+- Implement https://github.com/lucaspoffo/renet/pull/158.
+
 ## 0.0.3 - 05/24/2024
 
 - Add `bevy_replicon_renet2` sub-crate.
