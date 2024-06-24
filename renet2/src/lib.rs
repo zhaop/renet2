@@ -18,6 +18,9 @@ pub use server::{RenetServer, ServerEvent};
 
 pub use bytes::Bytes;
 
+#[cfg(feature = "bevy")]
+use bevy_ecs::component::StorageType;
+
 /// Unique identifier for clients.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd)]
 #[cfg_attr(feature = "bevy", derive(bevy_reflect::Reflect))]
@@ -63,5 +66,5 @@ impl<'de> serde::Deserialize<'de> for ClientId {
 
 #[cfg(feature = "bevy")]
 impl bevy_ecs::component::Component for ClientId {
-    type Storage = bevy_ecs::component::TableStorage;
+    const STORAGE_TYPE: StorageType = StorageType::Table;
 }
