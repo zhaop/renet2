@@ -18,15 +18,15 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/UkoeHB/renet2"
 
 [dependencies]
-bevy_replicon = { version = "0.26" }
+bevy_replicon = { version = "0.27.0-rc" }
 bevy_renet2 = { path = "../bevy_renet2", version = "0.0.3", default-features = false }
-bevy = { version = "0.13", default-features = false }
+bevy = { version = "0.14.0-rc", default-features = false }
 
 [dev-dependencies]
 serde = "1.0"
 clap = { version = "4.1", features = ["derive"] }
 bevy_renet2 = { path = "../bevy_renet2", version = "0.0.3", features = ["native_transport"] }
-bevy = { version = "0.13", default-features = false, features = [
+bevy = { version = "0.14.0-rc", default-features = false, features = [
   "bevy_text",
   "bevy_ui",
   "bevy_gizmos",

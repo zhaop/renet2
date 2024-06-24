@@ -72,8 +72,8 @@ wt_client_transport = [
 ]
 
 [dependencies]
-bevy_ecs = { version = "0.13", optional = true }
-bevy_reflect = { version = "0.13", optional = true }
+bevy_ecs = { version = "0.14.0-rc", optional = true }
+bevy_reflect = { version = "0.14.0-rc", optional = true }
 bytes = "1.1"
 log = "0.4"
 octets = "0.3"
